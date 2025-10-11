@@ -1,78 +1,100 @@
-/**
- * @typedef {Object} Song
- * @property {string} title - The title of the song.
- * @property {string} artist - The artist of the song.
- * @property {string} genre - The genre of the song.
- * @property {number} duration - The duration of the song in seconds.
- * @property {boolean} favorite - Whether the song is marked as a favorite.
- */
-// Example: { title: 'Song Title', artist: 'Song Artist', genre: 'Song Genre', duration: 180, favorite: false }
+// playlist/js/playlist.js
+export default function createPlaylistManager() {
+    // Estado privado
+    const playlists = [];
 
+    // Deep clone seguro (usa structuredClone si existe, si no JSON)
+    const deepClone = (obj) => {
+        if (typeof structuredClone === 'function') {
+            return structuredClone(obj);
+        }
+        return JSON.parse(JSON.stringify(obj));
+    };
 
-/**
- * @typedef {Object} Playlist
- * @property {string} name - The name of the playlist.
- * @property {Song[]} songs - The list of songs in the playlist.
- */
-// Example: { name: 'Playlist Name', songs: [{ title: 'Song Title', artist: 'Song Artist', genre: 'Song Genre', duration: 180, favorite: false }] }
+    // Buscar índice por nombre
+    const findPlaylistIndex = (name) => playlists.findIndex(p => p.name === name);
 
-const musicCatalog = () => {
-    /**
-     * Array of playlists in the catalog.
-     * @type {Playlist[]}
-     */
-    let playlists = [];
+    return {
+        // Crear playlist (no devuelve el objeto interno)
+        createPlaylist(name) {
+            if (!name || typeof name !== 'string') return false;
+            if (playlists.some(p => p.name === name)) return false;
+            playlists.push({ name, songs: [] });
+            return true;
+        },
 
-    /**
-     * Adds a new playlist to the catalog.
-     * @param {string} playlistName - The name of the new playlist.
-     */
-    const createPlaylist = (playlistName) => { };
+        // Devolver copia de todas las playlists (para que el exterior no pueda mutar el estado interno)
+        getAllPlaylists() {
+            return deepClone(playlists);
+        },
 
-    /**
-     * Gets all playlists in the catalog.
-     * @returns {Playlist[]} The list of all playlists.
-     */
-    const getAllPlaylists = () => { };
+        // Devolver copia de una playlist concreta
+        getPlaylist(name) {
+            const p = playlists.find(pl => pl.name === name);
+            return p ? deepClone(p) : null;
+        },
 
-    /**
-     * Removes a playlist from the catalog.
-     * @param {string} playlistName - The name of the playlist to remove.
-     */
-    const removePlaylist = (playlistName) => { };
+        // Eliminar playlist
+        removePlaylist(name) {
+            const idx = findPlaylistIndex(name);
+            if (idx === -1) return false;
+            playlists.splice(idx, 1);
+            return true;
+        },
 
-    /**
-     * Adds a song to a specific playlist.
-     * @param {string} playlistName - The name of the playlist to add the song to.
-     * @param {{ title: string, artist: string, genre: string, duration: number }} song - The song to add to the playlist.
-     * @throws {Error} If the playlist is not found.
-     */
-    const addSongToPlaylist = (playlistName, song) => { };
+        // Añadir canción: **siempre** crear un nuevo objeto songToAdd (no guardar la referencia)
+        addSongToPlaylist(playlistName, song) {
+            const p = playlists.find(pl => pl.name === playlistName);
+            if (!p) return false;
+            if (!song || typeof song.title !== 'string') return false;
 
-    /**
-     * Removes a song from a specific playlist.
-     * @param {string} playlistName - The name of the playlist to remove the song from.
-     * @param {string} title - The title of the song to remove.
-     * @throws {Error} If the playlist or song is not found.
-     */
-    const removeSongFromPlaylist = (playlistName, title) => { };
+            const songToAdd = {
+                title: song.title,
+                artist: song.artist || '',
+                genre: song.genre || '',
+                duration: typeof song.duration === 'number' ? song.duration : 0,
+                favorite: ('favorite' in song) ? !!song.favorite : false
+            };
 
-    /**
-     * Marks a song as a favorite or removes the favorite status.
-     * @param {string} playlistName - The name of the playlist containing the song.
-     * @param {string} title - The title of the song to mark as a favorite.
-     * @returns {void}
-     */
-    const favoriteSong = (playlistName, title) => { };
+            p.songs.push(songToAdd);
+            return true;
+        },
 
-    /**
-     * Sorts songs in a specific playlist by a given criterion (title, artist, or duration).
-     * @param {string} playlistName - The name of the playlist to sort songs in.
-     * @param {'title' | 'artist' | 'duration'} criterion - The criterion to sort by.
-     * @returns {void}
-     * @throws {Error} If the playlist is not found or the criterion is invalid.
-     */
-    const sortSongs = (playlistName, criterion) => { };
+        // Eliminar canción por título
+        removeSongFromPlaylist(playlistName, songTitle) {
+            const p = playlists.find(pl => pl.name === playlistName);
+            if (!p) return false;
+            const idx = p.songs.findIndex(s => s.title === songTitle);
+            if (idx === -1) return false;
+            p.songs.splice(idx, 1);
+            return true;
+        },
 
-    return { createPlaylist, addSongToPlaylist, removeSongFromPlaylist, sortSongs, getAllPlaylists, removePlaylist, favoriteSong };
-};
+        // Marcar favorita (modifica estado interno)
+        favoriteSong(playlistName, songTitle) {
+            const p = playlists.find(pl => pl.name === playlistName);
+            if (!p) return false;
+            const s = p.songs.find(song => song.title === songTitle);
+            if (!s) return false;
+            s.favorite = true;
+            return true;
+        },
+
+        // Ordenar canciones por criterio
+        sortSongs(playlistName, criteria) {
+            const p = playlists.find(pl => pl.name === playlistName);
+            if (!p || !['title', 'artist', 'duration'].includes(criteria)) return false;
+
+            p.songs.sort((a, b) => {
+                if (criteria === 'duration') return a.duration - b.duration;
+                const A = (a[criteria] || '').toString().toLowerCase();
+                const B = (b[criteria] || '').toString().toLowerCase();
+                if (A < B) return -1;
+                if (A > B) return 1;
+                return 0;
+            });
+
+            return true;
+        }
+    };
+}
